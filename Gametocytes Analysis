@@ -1,0 +1,131 @@
+# Complete script for gametocyte analysis 
+
+# 1. Separate the Seurat objects
+## Load you object and if you want you can reclustering your object and run the found markers after create the new object with the slected cells. 
+so_original <- S.O.pk_integrated
+so_gametocytes <- subset(so_original, idents = c(7, 8)) # Here you select the cluster you want on this  new object 
+so_non_gameto <- subset(so_original, idents = 0:6) # Here you put the idents/ clusters do you have wihtout the other you select before. 
+
+# -------------------------------
+# 2. PCA and UMAP in gametocytes
+# -------------------------------
+so_gametocytes <- NormalizeData(so_gametocytes)
+so_gametocytes <- FindVariableFeatures(so_gametocytes)
+so_gametocytes <- ScaleData(so_gametocytes)
+so_gametocytes <- RunPCA(so_gametocytes)
+so_gametocytes <- RunUMAP(so_gametocytes, dims = 1:10)
+DimPlot(so_gametocytes, reduction = "pca", label = TRUE)
+DimPlot(so_gametocytes, reduction = "umap", label = TRUE)
+
+# -------------------------------
+# 3. Save new Objects
+# -------------------------------
+saveRDS(so_gametocytes, file = "C:/TPA/filtered_for_R/so_gametocytes.rds")
+saveRDS(so_non_gameto, file = "C:/TPA/filtered_for_R/so_non_gametocytes.rds")
+# -------------------------------
+# 4. Expression Diff: Cluster 7 vs 8
+# -------------------------------
+Idents(so_gametocytes) <- "seurat_clusters"
+DE_7vs8 <- FindMarkers(so_gametocytes, ident.1 = "7", ident.2 = "8")
+head(DE_7vs8, 20)
+write.csv(DE_7vs8, "C:/TPA/filtered_for_R/DEG_cluster7_vs_8.csv")
+
+# -------------------------------
+# 5. Generate a nice table with the top 20 genes
+# -------------------------------
+library(kableExtra)
+library(webshot2)
+library(htmltools)
+library(dplyr)
+
+# Add column with gene name
+DE_7vs8 <- DE_7vs8 %>%
+tibble::rownames_to_column("Gene") %>%
+arrange(desc(avg_log2FC)) # Sort by most expressive
+
+# Select the top 20 genes
+top20 <- DE_7vs8 %>% head(20)
+
+# Create the cute HTML table
+html_table <- top20 %>%
+kable("html", caption = "Top 20 genes differentially expressed between clusters 7 and 8",
+digits = 4) %>%
+kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+
+# Define paths
+html_path <- "C:/TPA/filtered_for_R/top20_DEG_7vs8.html"
+png_path <- "C:/TPA/filtered_for_R/top20_DEG_7vs8.png" 
+
+# Save HTML
+save_html(table_html, file = html_path) 
+
+# Convert HTML to PNG image
+webshot2::webshot(html_file, file = "top20_DEG_7vs8.png", zoom = 2, vwidth = 1000, vheight = 800)
+
+
+# -------------------------------
+# 6. DE: Gametocytes vs others
+# -------------------------------
+so_combined <- merge(so.pk, y = so_non_gam)
+so_combined$group_gameto <- ifelse(Idents(so_combined) %in% c("2","4","1","3","6","5","0","7"), "Gametocyte", "Other")
+Idents(so_combined) <- "group_gameto"
+so_combined <- JoinLayers(so_combined)
+gameto_vs_rest <- FindMarkers(so_combined, ident.1 = "Gametocyte", ident.2 = "Other")
+nrow(gameto_vs_rest)
+write.csv(gameto_vs_rest,"C:/TPA/filtered_for_R/gametocitos_vs_outros.csv")
+
+# -------------------------------
+# 7. Genes significantly more expressed in gametocytes
+# -------------------------------
+up_in_gametocytes <- gameto_vs_rest %>% 
+filter(p_val_adj < 0.05, avg_log2FC > 0)
+
+nrow(up_in_gametocytes) # number of genes significantly more expressed in gametocytes
+write.csv(up_in_gametocytes, "C:/TPA/filtered_for_R/upregulated_in_gametocytes.csv", row.names = TRUE)
+
+# -------------------------------
+# 8. Most expressed genes in cluster 7 (positive and significant)
+# -------------------------------
+up_in_7 <- DE_7vs8 %>% 
+filter(avg_log2FC > 0, p_val_adj < 0.05)
+nrow(up_in_7)
+
+# -------------------------------
+# 9. Most expressed genes in cluster 8
+# -------------------------------
+
+up_in_8 <- DE_7vs8 %>% 
+filter(avg_log2FC < 0, p_val_adj < 0.05)
+nrow(up_in_8)
+write.csv(up_in_7, "C:/TPA/filtered_for_R/upregulated_in_cluster7.csv", row.names = TRUE)
+write.csv(up_in_8, "C:/TPA/filtered_for_R/upregulated_in_cluster8.csv", row.names = TRUE)
+
+# -------------------------------------------------------
+# 10. Which genes are shared between the most expressed in these two clusters?
+# -------------------------------------------------------
+
+# Convert row names to columns
+genes_7 <- rownames(up_in_7)
+genes_8 <- rownames(up_in_8)
+
+# Check if any gene is in both lists
+genes_in_common <- intersect(genes_7, genes_8)
+
+# Show the genes in common
+genes_in_common
+
+# How many genes are in common?
+length(genes_in_common)
+
+# Display the most expressed genes express
+library(EnhancedVolcano)
+EnhancedVolcano(DE_7vs8, 
+lab = rownames(DE_7vs8), 
+x = 'avg_log2FC', 
+y = 'p_val_adj', 
+pCutoff = 0.05, 
+FCcutoff = 0.58, # log2(1.5) 
+title = 'Cluster 7 vs Cluster 8', 
+subtitle = 'Differentially expressed genes', 
+col = c("grey30", "blue", "red", "purple"), 
+pointSize = 3.0,
