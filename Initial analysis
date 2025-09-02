@@ -1,0 +1,89 @@
+# Load the object
+S.O.pk_integrated<- readRDS("YOUR DIR")
+
+# How many cells do we have — in each HIVE and total
+
+# Total cells
+ncol(S.O.pk_integrated)
+
+# Check the metadata columns
+head(S.O.pk_integrated @meta.data)
+
+# Cell count per HIVE (assuming you have a column called "HIVE" in the metadata)
+table(S.O.pk_integrated $orig.ident )
+
+# If there is a stage column, check the unique values
+unique(S.O.pk_integrated$seurat_clusters) # replace "seurat_clusters" with the actual column name, if different
+
+# How many are gametocytes? What markers were used to check this? # Extracting expression from marker genes
+markers <- c("PKNH-1211100", "PKNH-1336700", "PKNH-1031500")
+markers <- genes
+# Ensuring that the genes exist in the object
+markers <- markers[markers %in% rownames(S.O.pk_integrated)]
+
+# Getting the expression matrix
+expr_mat <- FetchData(S.O.pk_integrated, vars = markers)
+
+# Checking to choose the best threshold
+VlnPlot(S.O.pk_integrated, features = c(" place the genes"), pt.size = 0.1, log = TRUE)
+FeaturePlot(S.O.pk_integrated, features = c(" place the genes"))
+
+S.O.pk_integrated$gameto_identity <- "Other"
+S.O.pk_integrated$gameto_identity[FetchData(S.O.pk_integrated, "put gene")[,1] >= 2] <- "Cluster 7"
+S.O.pk_integrated$gameto_identity[FetchData(S.O.pk_integrated, "put gene")[,1] >= 1.5] <- "7 and 8"
+
+# 3. Apply thresholds (adjusted based on your analyses)
+# Here: ≥2 for female, ≥1.5 for male
+is_gameto <- (expr_mat[,"gene fem"] >= 0.5) | (expr_mat[,"gene masc"] >= 0.5)
+
+# 4. See how many gametocytes were identified
+sum(is_gameto)
+
+# Add a "type" column to the metadata
+S.O.pk_integrated$cell_type <- ifelse(is_gameto, "Gametocyte", "Other")
+
+# Run FindMarkers comparing gametocytes vs. others
+gameto.markers <- FindMarkers(S.O.pk_integrated, ident.1 = "Gametocyte", ident.2 = "Other", group.by = "cell_type")
+
+# View top genes
+head(gameto.markers[order(-gameto.markers$avg_log2FC), ], 20)
+
+# How many genes were identified in gametocytes? gameto.markers <- FindMarkers(S.O.pk_integrated, ident.1 = "Gametocyte", ident.2 = "Other", group.by = "cell_type")
+# All genes with adjusted p-value < 0.05
+DE_genes <- gameto.markers[gameto.markers$p_val_adj < 0.05, ]
+nrow(DE_genes) # total differentially expressed genes
+head(DE_genes) # top genes
+
+# Which genes are 10x more or less expressed in gametocytes?
+
+# Compare gametocytes vs. non-gametocytes
+markers <- FindMarkers(S.O.pk_integrated, ident.1 = "Gametocyte", ident.2 = "Other", group.by = "cell_type", logfc.threshold = log2(10))
+
+# Visualize the top differentially expressed genes (logFC > log2(10))
+head(markers[order(-markers$avg_log2FC), ])
+
+# How many reads do we have in total — and per cell?
+# Total UMI reads (RNA counts)
+sum(S.O.pk_integrated$nCount_RNA)
+
+# Reads per cell (already in the nCount_RNA column)
+summary(S.O.pk_integrated$nCount_RNA)
+
+# How many transcripts were identified per cell?
+
+# Already in the nFeature_RNA column
+summary(S.O.pk_integrated$nFeature_RNA)
+
+# Visualization
+VlnPlot(S.O.pkh, features = "nFeature_RNA", group.by = "HIVE")
+
+# Data by gene
+#"PKNH-1324400"
+gene <- "Gene ID"
+expr_values ​​<- FetchData(S.O.pk_integrated, vars = gene)
+
+# See how many cells have expression greater than zero for this gene
+num_cells_expressing <- sum(expr_values[[gene]] > 0)
+
+# Show result
+cat("Number of cells expressing", gene, ":", num_cells_expressing, "\n")
