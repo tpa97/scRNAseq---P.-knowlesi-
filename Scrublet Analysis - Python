@@ -1,0 +1,80 @@
+# This file is for the Scrublet Analysis before Harmony. This analysis identifies and takeout all doublets from your database. 
+# 1) pip install scrublet scipy pandas
+import scrublet as scr
+import pandas as pd
+import scipy.io
+import scipy.sparse
+import os
+
+data_dir = "your diretory" # here I upload my matrix, barcodes and features, not my seurat object!
+
+# I. read the matriz mtx
+matrix = scipy.io.mmread(f"{data_dir}/matrix.mtx")
+matrix = scipy.sparse.csr_matrix(matrix)
+
+# II. Read barcodes and genes
+barcodes = pd.read_csv(f"{data_dir}/barcodes.tsv", header=None)[0].values
+features = pd.read_csv(f"{data_dir}/features.tsv", header=None)[0].values
+
+# III. Run Scrublet
+scrub = scr.Scrublet(matrix_T, expected_doublet_rate=0.075)
+doublet_scores, predicted_doublets = scrub.scrub_doublets()
+
+# IV. Filter the doublets
+clean_matrix = matrix_T[~predicted_doublets]
+clean_barcodes = barcodes[~predicted_doublets]
+
+# V. Save the results of doublets
+results_df = pd.DataFrame({
+    'barcode': barcodes,
+    'doublet_score': doublet_scores,
+    'predicted_doublet': predicted_doublets
+})
+results_df.to_csv(f"{data_dir}/scrublet_results.csv", index=False)
+print("Resultados salvos em scrublet_results.csv")
+
+# VI. Plots
+scrub.plot_histogram()
+scrub.plot_embedding('pca')
+
+# VII. Export teh filter datas to new diretory  
+output_dir = f"{data_dir}/filtered_scrublet"
+os.makedirs(output_dir, exist_ok=True)
+
+# Salve the new cleaned matrix
+scipy.io.mmwrite(f"{output_dir}/matrix.mtx", clean_matrix)
+
+# Salve the filter barcodes
+with open(f"{output_dir}/barcodes.tsv", "w") as f:
+    for bc in clean_barcodes:
+        f.write(f"{bc}\n")
+
+# Salve the originals features 
+with open(f"{output_dir}/features.tsv", "w") as f:
+    for gene in features:
+        f.write(f"{gene}\n")
+
+print(f"Matriz filtrada salva em: {output_dir}")
+
+# 2)  Now you need check the matrix shape, barcodes and the doublets scores: 
+print(f"matrix shape: {matrix.shape}")
+print(f"barcodes: {len(barcodes)}")
+print(f"doublet_scores: {len(doublet_scores)}")
+print(f"predicted_doublets: {len(predicted_doublets)}")
+
+# 3) Verify the number of cells before and after the filtering 
+print(f"Células antes da filtragem: {matrix_T.shape[0]}")
+print(f"Células após filtragem (doublets removidos): {clean_matrix.shape[0]}")
+
+# 4) Final report from analysis
+total = matrix_T.shape[0]
+removidos = predicted_doublets.sum()
+restantes = clean_matrix.shape[0]
+percent = (removidos / total) * 100
+
+print(f"Relatório de filtragem Scrublet:")
+print(f"- Células totais: {total}")
+print(f"- Doublets removidos: {removidos} ({percent:.2f}%)")
+print(f"- Células restantes: {restantes}")
+
+
