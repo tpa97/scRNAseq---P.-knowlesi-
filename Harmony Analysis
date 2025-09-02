@@ -1,0 +1,43 @@
+# Harmony Analysis
+library(harmony)
+library(Seurat)
+library(dplyr)
+library(cowplot)
+
+
+              # Integrate with harmony #
+
+# devtools::install_github("immunogenomics/harmony")
+install.packages("devtools")
+library(harmony)
+library(Seurat)
+
+seurat_obj<- readRDS("YOUR DIRETORY RDS")
+head(seurat_obj@meta.data)
+
+# No group by vars colocar o nome da primeira coluna do meta dado"
+seurat_obj <- RunHarmony(seurat_obj, group.by.vars = "dataset")
+
+# Visualize os embeddings com Harmony
+ElbowPlot(seurat_obj, reduction = "harmony")
+
+# Rodar UMAP com embeddings do Harmony
+seurat_obj <- RunUMAP(seurat_obj, reduction = "harmony", dims = 1:10)
+seurat_obj <- FindNeighbors(seurat_obj, reduction = "harmony", dims = 1:10)
+seurat_obj <- FindClusters(seurat_obj, resolution = 0.5)
+
+# Save the object with harmony
+
+saveRDS(seurat_obj, file = "Your dir and name from your object")
+
+# UMAP with harmony
+
+DimPlot(seurat_obj, reduction = "umap", group.by = "seurat_clusters", label = TRUE) + NoLegend()
+
+# Colorinf the UMAP by orig.ident from  meta data
+
+DimPlot(seurat_obj, reduction = "umap", group.by = "dataset")
+
+# Chack how many cells do you have on each cluster:
+table(seurat_obj$seurat_clusters, seurat_obj$dataset)
+prop.table(table(seurat_obj$seurat_clusters, seurat_obj$dataset), margin = 2) * 100
