@@ -1,0 +1,39 @@
+# Script to remove cells with specific gene expression
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+
+# 1. Load the object
+so_non_gameto <- readRDS("C:/TPA/filtered_for_R/so_non_gameto.rds")
+
+# 2. Use normalized (log) data
+expr_data <- GetAssayData(so_non_gameto, slot = "data")
+
+# 3. Select cells with expression > 1 of the two genes
+cels_alta_expr <- colnames(so_non_gameto)[
+expr_data["PKNH-1441500", ] > 1 & expr_data["PKNH-1350200", ] > 1
+]
+
+# 4. Create two Seurat objects
+# (a) Object with high-expressing cells
+so_AP2 <- subset(so_non_gameto, cells = cels_alta_expr)
+
+# (b) Object without these cells
+so_sem_AP2 <- subset(so_non_gameto, cells = setdiff(colnames(so_non_gameto), cels_alta_expr))
+
+# 5. Generate the UMAP
+# UMAP with cells highly expressing the genes
+DimPlot(so_AP2, reduction = "umap", group.by = "ident") +
+ggtitle("Cells with high expression of AP2G and AP2G2")
+
+# UMAP without these cells
+DimPlot(so_sem_AP2, reduction = "umap", group.by = "ident") +
+ggtitle("Object without cells with high expression of both genes")
+
+# Save the new objects
+saveRDS(so_AP2, file = "C:/TPA/filtered_for_R/so_AP2.rds")
+saveRDS(so_sem_AP2, file = "C:/TPA/filtered_for_R/so_sem_AP2.rds")
+
+# Number of cells in each cluster
+
+table(Idents(so_AP2))
