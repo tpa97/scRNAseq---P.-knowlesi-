@@ -1,0 +1,39 @@
+# Finding markers 
+library(Seurat)
+library(dplyr)
+library(ggplot2)
+library(patchwork)
+# First load your object
+
+# 1. Find markers for all clusters
+all_markers <- FindAllMarkers(your object,
+only.pos = TRUE,
+min.pct = 0.25,
+logfc.threshold = 0.25)
+
+# 2. Select the 6 genes with the highest log2FC per cluster
+top6_by_cluster <- all_markers %>%
+group_by(cluster) %>%
+top_n(n = 20, wt = avg_log2FC)
+
+# 3. Export results
+write.csv(all_markers, "all_markers_cluster.csv", row.names = FALSE)
+write.csv(top6_by_cluster, "top6_markers_cluster.csv", row.names = FALSE)
+
+# 4. Generate a unique list of the top genes
+top_genes_unique <- unique(top6_by_cluster$gene)
+
+# 5. DotPlot of top genes by cluster
+DotPlot(S.O.pk_integrated, features = top_genes_unique) +
+theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+ggtitle("DotPlot: Top 6 genes by cluster")
+
+# 6. ViolinPlots of top genes
+for (gene in top_genes_unique) {
+print(VlnPlot(S.O.pk_integrated, features = gene, pt.size = 0.1) + ggtitle(gene))
+
+# 7. Heatmap of top genes (optional: use only if you have a few thousand cells)
+# Subset for top genes and organize cluster order
+DefaultAssay(your object) <- "RNA" # or "SCT" if using SCTransform
+DoHeatmap(your object, features = top_genes_unique, group.colors = NULL) +
+ggtitle("Heatmap of top genes by cluster")
