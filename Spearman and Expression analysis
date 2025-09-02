@@ -1,0 +1,113 @@
+# Spearman and Expression analysis to differents objects and genes 
+# Run this analysis after the pseudotime and found markers analysis! 
+# Install and run 
+library(Seurat)
+library(Matrix)
+library(patchwork)
+library(ggplot2)
+
+# Load all object do you want to analyse 
+AP2up<- readRDS("C:/TPA/Pk_Hives- NewTB/so_AP2upNew.rds")
+Assex<- readRDS("C:/TPA/Pk_Hives- NewTB/S.O.pkh.harmony.pseudo.rds")
+Gam<- readRDS("C:/TPA/Pk_Hives- NewTB/so_gameto_pseudo_new_Re.rds")
+Erin_G <- readRDS("C:/TPA/ErinMe/S.O.Pkh1_nonAP2up.rds")
+Erin_AP <- readRDS("C:/TPA/ErinMe/so_AP2up.Erin.rds")
+
+# 1.  basics informations about the objects 
+Assex$ident <- Idents(Assex)
+levels(Idents(Assex))
+data <- FetchData(Assex, vars = c(genes, "ident"))
+
+AP2up$ident <- Idents(AP2up)
+levels(Idents(AP2up))
+data <- FetchData(AP2up, vars = c(genes, "ident"))
+
+Gam$ident <- Idents(Gam)
+levels(Idents(Gam))
+data <- FetchData(Gam, vars = c(genes, "ident"))
+
+Gam$ident <- Idents(Erin_G)
+levels(Idents(Erin_G))
+data <- FetchData(Erin_G, vars = c(genes, "ident"))
+
+Gam$ident <- Idents(Erin_AP)
+levels(Idents(Erin_AP))
+data <- FetchData(Erin_AP, vars = c(genes, "ident"))
+
+
+# 2. List of genes to be analyzed - replace genes with any you want
+genes <- c("PKNH-1119400","PKNH-1135300","PKNH-1421700","PKNH-0215800")
+genes<- c("PKNH-0601300","PKNH-1357400","PKNH-1217200","PKNH-1247700")
+genes<- c("PKNH-1324400","PKNH-1203600")
+genes<- c("PKNH-1203600","PKNH-1203500","PKNH-0412200")
+genes<- c("PKNH-1310200","PKNH-1209400","PKNH-1245800","PKNH-0401800")
+# For each gene, calculate the sum per cluster and relative percentage
+percent_total_expression <- sapply(genes, function(gene) {
+sum_per_ident <- tapply(data[[gene]], data$ident, sum)
+percentages <- 100 * sum_per_ident / sum(data[[gene]])
+return(percent)
+})
+
+# 3. Convert to data.frame for better visualization
+percent_total_expression_df <- as.data.frame(percent_total_expression_df)
+percent_total_expression_df
+
+
+# 4. Define the clusters (identities) based on what is already in the object
+# If it is already in the object, you can skip this line
+# Idents(so_non_gameto) <- "your_cluster_column" # Replace if necessary
+
+# 5. List of cluster names
+clusters <- c("Committed Trophozoite","Committed Ring","Developing Gametocyte",
+"Female Gametocyte","Male Gametocyte" )
+
+# 6. Create a list to store results
+cor_results_cluster <- list()
+
+# 7. Loop through cluster
+for (clust in clusters) {
+cat("\n📊 Cluster:", clust, "\n")
+subset_obj <- subset(Gam, idents = cluster) 
+
+if (!"pseudotime" %in% colnames(subset_obj@meta.data)) { 
+cat("❌ Pseudotime not found in cluster\n") 
+next 
+} 
+
+# 8. Correlation by gene 
+res <- sapply(genes, function(gene) { 
+expr <- FetchData(subset_obj, vars = gene)[[1]] 
+pt <- subset_obj$pseudotime 
+
+if (all(is.na(expr)) || length(unique(expr)) <= 1 || all(expr == 0)) { 
+return(NA) 
+} 
+
+valid <- which(!is.na(expr) & !is.na(pt)) 
+if (length(valid) < 10) return(NA) 
+
+color(expr[valid], pt[valid], method = "spearman")
+})
+
+cor_results_cluster[[clust]] <- round(res, 3)
+}
+
+# 9. View all results
+print(cor_results_cluster)
+
+# 10. Generate a graph for each gene
+for (gene in genes) {
+df <- FetchData(non_gam, vars = c("pseudotime", gene)) 
+colnames(df) <- c("Pseudotime", "Expression") 
+
+p <- ggplot(df, aes(x = Pseudotime, y = Expression)) + 
+geom_point(size = 0.5, alpha = 0.5) + 
+geom_smooth(method = "loess", color = "red", se = FALSE) + 
+labs(title = gene, x = "Pseudotime", y = "Normalized expression") + 
+theme_minimal(base_size = 10) 
+
+plots[[gene]] <- p
+}
+
+# Merge all graphs into one panel
+wrap_plots(plots, ncol = 3)
